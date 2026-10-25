@@ -1,0 +1,23 @@
+# Environment configuration
+.env
+.env*.local
+
+# Virtual environments
+rag/
+venv/
+.venv/
+env/
+
+# Python cache & build files
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.dist/
+
+# VS Code / IDE settings
+.vscode/*
+!.vscode/settings.json
+
+# Code runner temporary execution files
+tempCodeRunnerFile.py

@@ -1,0 +1,22 @@
+# Core Text Splitting & Chunking Libraries
+langchain-text-splitters>=0.3.0
+langchain>=0.3.0
+
+# Tokenizers for Token-based Chunking
+tiktoken>=0.8.0
+tokenizers>=0.20.0
+transformers>=4.45.0
+
+# NLP & Sentence-based Splitting
+nltk>=3.9.0
+spacy>=3.8.0
+
+# Lightweight & Modern Chunking Libraries
+chonkie>=0.4.0
+
+# Semantic & Embedding-based Chunking (Optional / Advanced)
+sentence-transformers>=3.0.0
+
+# Utility & Notebook Support (Optional)
+numpy>=1.26.0
+python-dotenv>=1.0.0
