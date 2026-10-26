@@ -1,0 +1,721 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DocuChat AI — PDF Question & Answer</title>
+    <meta name="description" content="Upload any PDF and instantly chat with its contents using AI-powered retrieval-augmented generation.">
+
+    <!-- Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+
+    <!-- TailwindCSS v3 CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Inter', 'system-ui', '-apple-system', 'sans-serif'],
+                    },
+                    animation: {
+                        'float':         'float 6s ease-in-out infinite',
+                        'float-slow':    'float 10s ease-in-out 2s infinite',
+                        'fade-in':       'fadeIn 0.4s ease-out forwards',
+                        'slide-up':      'slideUp 0.5s ease-out forwards',
+                        'pulse-glow':    'pulseGlow 1.8s ease-in-out infinite',
+                        'bounce-dot':    'bounceDot 1.4s ease-in-out infinite',
+                    },
+                    keyframes: {
+                        float: {
+                            '0%, 100%': { transform: 'translateY(0) rotate(0deg)' },
+                            '50%':      { transform: 'translateY(-20px) rotate(2deg)' },
+                        },
+                        fadeIn: {
+                            from: { opacity: 0, transform: 'translateY(8px)' },
+                            to:   { opacity: 1, transform: 'translateY(0)' },
+                        },
+                        slideUp: {
+                            from: { opacity: 0, transform: 'translateY(30px)' },
+                            to:   { opacity: 1, transform: 'translateY(0)' },
+                        },
+                        pulseGlow: {
+                            '0%, 100%': { boxShadow: '0 0 8px rgba(239,68,68,0.4), 0 0 24px rgba(239,68,68,0.15)' },
+                            '50%':      { boxShadow: '0 0 20px rgba(239,68,68,0.6), 0 0 48px rgba(239,68,68,0.3)' },
+                        },
+                        bounceDot: {
+                            '0%, 80%, 100%': { transform: 'scale(0.5)', opacity: 0.35 },
+                            '40%':           { transform: 'scale(1)',   opacity: 1 },
+                        },
+                    },
+                },
+            },
+        };
+    </script>
+
+    <style>
+        /* ---------- scrollbar ---------- */
+        ::-webkit-scrollbar       { width: 5px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: rgba(148,163,184,0.25); border-radius: 4px; }
+        ::-webkit-scrollbar-thumb:hover { background: rgba(148,163,184,0.45); }
+
+        /* ---------- glass ---------- */
+        .glass {
+            background: rgba(15,23,42,0.55);
+            backdrop-filter: blur(18px);
+            -webkit-backdrop-filter: blur(18px);
+            border: 1px solid rgba(148,163,184,0.08);
+        }
+        .glass-card {
+            background: rgba(30,41,59,0.45);
+            backdrop-filter: blur(14px);
+            -webkit-backdrop-filter: blur(14px);
+            border: 1px solid rgba(148,163,184,0.07);
+        }
+
+        /* ---------- drag-and-drop ---------- */
+        .drop-active {
+            border-color: rgb(139,92,246) !important;
+            background: rgba(139,92,246,0.08) !important;
+        }
+
+        /* ---------- gradient text ---------- */
+        .gradient-text {
+            background: linear-gradient(135deg, #a78bfa 0%, #7c3aed 50%, #6d28d9 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        /* ---------- ambient bg orbs ---------- */
+        .orb {
+            position: fixed;
+            border-radius: 50%;
+            filter: blur(90px);
+            opacity: 0.12;
+            pointer-events: none;
+            z-index: 0;
+        }
+
+        /* ---------- typing dots stagger ---------- */
+        .dot-2 { animation-delay: 0.16s; }
+        .dot-3 { animation-delay: 0.32s; }
+
+        /* ---------- hide utility (with transition support) ---------- */
+        .state-hidden { display: none !important; }
+    </style>
+</head>
+
+<body class="bg-slate-950 text-slate-100 font-sans h-screen overflow-hidden select-none">
+
+    <!-- ═══════════════ ambient background ═══════════════ -->
+    <div class="orb w-[28rem] h-[28rem] bg-violet-600 -top-24 -left-20 animate-float"></div>
+    <div class="orb w-[22rem] h-[22rem] bg-purple-700 -bottom-20 -right-16 animate-float-slow"></div>
+    <div class="orb w-64 h-64 bg-indigo-500 top-1/2 left-[55%] animate-float" style="animation-duration:11s"></div>
+
+
+    <!-- ═══════════════════════════════════════════════════
+         STATE 1 — Upload Screen
+         ═══════════════════════════════════════════════════ -->
+    <section id="upload-screen"
+             class="relative z-10 flex items-center justify-center min-h-screen p-4">
+
+        <div class="glass rounded-3xl p-8 md:p-12 max-w-lg w-full animate-slide-up
+                    shadow-2xl shadow-violet-950/30">
+
+            <!-- branding -->
+            <div class="text-center mb-8">
+                <div class="inline-flex items-center justify-center w-16 h-16 rounded-2xl
+                            bg-gradient-to-br from-violet-500 to-purple-700 mb-4
+                            shadow-lg shadow-violet-600/30">
+                    <svg class="w-8 h-8 text-white" fill="none" viewBox="0 0 24 24"
+                         stroke="currentColor" stroke-width="1.5">
+                        <path stroke-linecap="round" stroke-linejoin="round"
+                              d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125
+                                 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m0
+                                 12.75h7.5m-7.5 3H12M10.5 2.25H5.625c-.621 0-1.125.504-1.125
+                                 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0
+                                 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z"/>
+                    </svg>
+                </div>
+                <h1 class="text-3xl font-extrabold gradient-text mb-2">DocuChat AI</h1>
+                <p class="text-slate-400 text-sm leading-relaxed">
+                    Upload a PDF and chat with its contents using AI
+                </p>
+            </div>
+
+            <!-- drop zone -->
+            <div id="drop-zone"
+                 class="border-2 border-dashed border-slate-700 rounded-2xl p-8 text-center
+                        cursor-pointer transition-all duration-300
+                        hover:border-violet-500/50 hover:bg-violet-500/5 group">
+
+                <input type="file" id="file-input" accept=".pdf" class="hidden">
+
+                <!-- idle state -->
+                <div id="dz-idle">
+                    <svg class="w-12 h-12 mx-auto mb-4 text-slate-500
+                                group-hover:text-violet-400 transition-colors"
+                         fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
+                        <path stroke-linecap="round" stroke-linejoin="round"
+                              d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0
+                                 0021 18.75V16.5m-13.5-9L12 3m0 0l4.5 4.5M12 3v13.5"/>
+                    </svg>
+                    <p class="text-slate-300 font-medium mb-1">Drag &amp; drop your PDF here</p>
+                    <p class="text-slate-500 text-sm">or click to browse</p>
+                </div>
+
+                <!-- file selected state -->
+                <div id="dz-selected" class="state-hidden">
+                    <svg class="w-10 h-10 mx-auto mb-3 text-violet-400" fill="none"
+                         viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
+                        <path stroke-linecap="round" stroke-linejoin="round"
+                              d="M10.125 2.25h-4.5c-.621 0-1.125.504-1.125 1.125v17.25c0
+                                 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504
+                                 1.125-1.125V11.25a9 9 0 00-9-9z"/>
+                        <path stroke-linecap="round" stroke-linejoin="round"
+                              d="M10.125 2.25A9 9 0 0119.5 11.25"/>
+                    </svg>
+                    <p id="sel-name" class="text-violet-300 font-semibold truncate mb-1"></p>
+                    <p class="text-slate-500 text-xs">Click Upload to begin</p>
+                </div>
+            </div>
+
+            <!-- upload button -->
+            <button id="upload-btn"
+                    class="state-hidden w-full mt-4 px-6 py-3 rounded-xl font-semibold text-white
+                           bg-gradient-to-r from-violet-600 to-purple-700
+                           hover:from-violet-500 hover:to-purple-600
+                           shadow-lg shadow-violet-600/25 hover:shadow-violet-500/40
+                           transition-all duration-300 active:scale-[0.98]
+                           disabled:opacity-50 disabled:pointer-events-none">
+                Upload &amp; Process
+            </button>
+
+            <!-- progress bar -->
+            <div id="upload-progress" class="state-hidden mt-6">
+                <div class="flex items-center gap-3 p-4 rounded-xl bg-slate-800/50">
+                    <svg class="w-5 h-5 text-violet-400 animate-spin flex-shrink-0"
+                         fill="none" viewBox="0 0 24 24">
+                        <circle class="opacity-25" cx="12" cy="12" r="10"
+                                stroke="currentColor" stroke-width="4"/>
+                        <path class="opacity-75" fill="currentColor"
+                              d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z
+                                 m2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135
+                                 5.824 3 7.938l3-2.647z"/>
+                    </svg>
+                    <p id="progress-text" class="text-sm text-slate-300"></p>
+                </div>
+            </div>
+
+            <!-- upload error -->
+            <div id="upload-err" class="state-hidden mt-4 p-4 rounded-xl
+                                       bg-red-500/10 border border-red-500/20">
+                <p id="upload-err-text" class="text-sm text-red-400"></p>
+            </div>
+        </div>
+    </section>
+
+
+    <!-- ═══════════════════════════════════════════════════
+         STATE 2 / 3 — Chat Screen
+         ═══════════════════════════════════════════════════ -->
+    <section id="chat-screen" class="state-hidden relative z-10 flex flex-col h-screen">
+
+        <!-- ──── header ──── -->
+        <header class="glass flex-shrink-0 px-4 md:px-6 py-3
+                       flex items-center justify-between gap-4">
+            <div class="flex items-center gap-3 min-w-0">
+                <div class="flex-shrink-0 w-9 h-9 rounded-lg bg-gradient-to-br
+                            from-violet-500 to-purple-700 flex items-center justify-center">
+                    <svg class="w-5 h-5 text-white" fill="none" viewBox="0 0 24 24"
+                         stroke="currentColor" stroke-width="1.5">
+                        <path stroke-linecap="round" stroke-linejoin="round"
+                              d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125
+                                 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25
+                                 m2.25 0H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504
+                                 1.125 1.125 1.125h12.75c.621 0 1.125-.504
+                                 1.125-1.125V11.25a9 9 0 00-9-9z"/>
+                    </svg>
+                </div>
+                <div class="min-w-0">
+                    <p id="header-name" class="text-sm font-semibold text-white truncate"></p>
+                    <span id="header-badge"
+                          class="inline-block mt-0.5 px-2 py-0.5 rounded-full text-[10px]
+                                 font-bold uppercase tracking-wider"></span>
+                </div>
+            </div>
+
+            <button id="new-chat-btn"
+                    class="flex-shrink-0 flex items-center gap-2 px-4 py-2 rounded-xl text-sm
+                           font-semibold transition-all duration-300 active:scale-[0.97]
+                           bg-slate-800 hover:bg-slate-700
+                           border border-slate-700 hover:border-slate-600">
+                <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24"
+                     stroke="currentColor" stroke-width="2">
+                    <path stroke-linecap="round" stroke-linejoin="round"
+                          d="M12 4.5v15m7.5-7.5h-15"/>
+                </svg>
+                New Chat
+            </button>
+        </header>
+
+        <!-- ──── messages ──── -->
+        <main id="messages"
+              class="flex-1 overflow-y-auto px-4 md:px-6 py-4 space-y-4 scroll-smooth">
+        </main>
+
+        <!-- ──── fatal banner (State 3) ──── -->
+        <div id="fatal-banner" class="state-hidden px-4 md:px-6 pb-2">
+            <div class="flex items-start gap-3 p-4 rounded-xl
+                        bg-red-500/10 border border-red-500/30 animate-fade-in">
+                <svg class="w-5 h-5 text-red-400 flex-shrink-0 mt-0.5" fill="none"
+                     viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                    <path stroke-linecap="round" stroke-linejoin="round"
+                          d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948
+                             3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949
+                             3.378c-.866-1.5-3.032-1.5-3.898 0L2.697
+                             16.126zM12 15.75h.007v.008H12v-.008z"/>
+                </svg>
+                <div>
+                    <p class="text-sm font-semibold text-red-400">Session Terminated</p>
+                    <p id="fatal-text" class="text-sm text-red-300/80 mt-1"></p>
+                </div>
+            </div>
+        </div>
+
+        <!-- ──── input ──── -->
+        <footer class="glass flex-shrink-0 px-4 md:px-6 py-3">
+            <form id="chat-form" class="flex items-center gap-3">
+                <input id="q-input" type="text" autocomplete="off"
+                       placeholder="Ask a question about your PDF…"
+                       class="flex-1 px-4 py-3 rounded-xl bg-slate-800/80
+                              border border-slate-700/50 text-white placeholder-slate-500
+                              text-sm focus:outline-none focus:ring-2 focus:ring-violet-500/50
+                              focus:border-violet-500/50 transition-all duration-200
+                              disabled:opacity-40 disabled:cursor-not-allowed">
+                <button id="send-btn" type="submit"
+                        class="flex-shrink-0 p-3 rounded-xl text-white
+                               bg-gradient-to-r from-violet-600 to-purple-700
+                               hover:from-violet-500 hover:to-purple-600
+                               shadow-lg shadow-violet-600/20 hover:shadow-violet-500/30
+                               transition-all duration-300 active:scale-[0.95]
+                               disabled:opacity-40 disabled:cursor-not-allowed
+                               disabled:shadow-none" disabled>
+                    <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24"
+                         stroke="currentColor" stroke-width="2">
+                        <path stroke-linecap="round" stroke-linejoin="round"
+                              d="M6 12L3.269 3.126A59.768 59.768 0 0121.485
+                                 12 59.77 59.77 0 013.27 20.876L5.999
+                                 12zm0 0h7.5"/>
+                    </svg>
+                </button>
+            </form>
+        </footer>
+    </section>
+
+
+    <!-- ═══════════════════════════════════════════════════
+         JavaScript — state machine
+         ═══════════════════════════════════════════════════ -->
+    <script>
+    (() => {
+        "use strict";
+
+        /* ───────── constants ───────── */
+        // Auto-detect: if served by FastAPI uses same-origin (""), if opened standalone (file://) points to localhost:8000
+        const API = (window.location.protocol === "file:" || window.location.origin === "null")
+            ? "http://127.0.0.1:8000"
+            : "";
+
+        /* ───────── state ───────── */
+        let pdfHash    = null;
+        let filename   = null;
+        let locked     = false;               // true  → State 3
+
+        /* ───────── DOM refs ───────── */
+        const $  = (s) => document.getElementById(s);
+
+        const uploadScreen = $("upload-screen");
+        const chatScreen   = $("chat-screen");
+        const dropZone     = $("drop-zone");
+        const fileInput    = $("file-input");
+        const dzIdle       = $("dz-idle");
+        const dzSelected   = $("dz-selected");
+        const selName      = $("sel-name");
+        const uploadBtn    = $("upload-btn");
+        const progress     = $("upload-progress");
+        const progressText = $("progress-text");
+        const uploadErr    = $("upload-err");
+        const uploadErrTxt = $("upload-err-text");
+        const headerName   = $("header-name");
+        const headerBadge  = $("header-badge");
+        const messages     = $("messages");
+        const chatForm     = $("chat-form");
+        const qInput       = $("q-input");
+        const sendBtn      = $("send-btn");
+        const fatalBanner  = $("fatal-banner");
+        const fatalText    = $("fatal-text");
+        const newChatBtn   = $("new-chat-btn");
+
+        /* ═══════════════════════════════
+           File selection / drag-and-drop
+           ═══════════════════════════════ */
+
+        dropZone.addEventListener("click", () => fileInput.click());
+        fileInput.addEventListener("change", onFileChosen);
+
+        dropZone.addEventListener("dragover", (e) => {
+            e.preventDefault();
+            dropZone.classList.add("drop-active");
+        });
+        dropZone.addEventListener("dragleave", () =>
+            dropZone.classList.remove("drop-active"));
+        dropZone.addEventListener("drop", (e) => {
+            e.preventDefault();
+            dropZone.classList.remove("drop-active");
+            if (e.dataTransfer.files.length) {
+                fileInput.files = e.dataTransfer.files;
+                onFileChosen();
+            }
+        });
+
+        function onFileChosen() {
+            const f = fileInput.files[0];
+            if (!f) return;
+            if (!f.name.toLowerCase().endsWith(".pdf")) {
+                showUploadErr("Please select a PDF file.");
+                return;
+            }
+            hideUploadErr();
+            dzIdle.classList.add("state-hidden");
+            dzSelected.classList.remove("state-hidden");
+            selName.textContent = f.name;
+            uploadBtn.classList.remove("state-hidden");
+            uploadBtn.disabled = false;
+        }
+
+        /* ═══════════════════════════════
+           Upload
+           ═══════════════════════════════ */
+
+        uploadBtn.addEventListener("click", handleUpload);
+
+        async function handleUpload() {
+            const file = fileInput.files[0];
+            if (!file) return;
+
+            uploadBtn.disabled = true;
+            hideUploadErr();
+            showProgress("Uploading PDF…");
+
+            const body = new FormData();
+            body.append("file", file);
+
+            try {
+                showProgress("Processing — checking Pinecone cache…");
+
+                const res  = await fetch(`${API}/api/upload`, { method: "POST", body });
+                const data = await res.json();
+
+                /* error path */
+                if (!res.ok || data.error) {
+                    showUploadErr(data.message || data.detail || "Upload failed.");
+                    uploadBtn.disabled = false;
+                    hideProgress();
+                    return;
+                }
+
+                /* success */
+                showProgress(data.cached
+                    ? "Embeddings found in cache — loading…"
+                    : "Embeddings created — entering chat…");
+                await sleep(700);
+
+                pdfHash  = data.pdf_hash;
+                filename = data.filename;
+                enterChat(data.cached);
+
+            } catch (err) {
+                showUploadErr("Network error — is the server running?");
+                uploadBtn.disabled = false;
+                hideProgress();
+            }
+        }
+
+        /* ═══════════════════════════════
+           Chat
+           ═══════════════════════════════ */
+
+        chatForm.addEventListener("submit", handleSend);
+        qInput.addEventListener("input", () => {
+            sendBtn.disabled = !qInput.value.trim() || locked;
+        });
+
+        async function handleSend(e) {
+            e.preventDefault();
+            const q = qInput.value.trim();
+            if (!q || locked) return;
+
+            appendMsg("user", q);
+            qInput.value = "";
+            sendBtn.disabled = true;
+
+            const typingId = appendTyping();
+
+            try {
+                const res = await fetch(`${API}/api/chat`, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ pdf_hash: pdfHash, question: q, top_k: 5 }),
+                });
+
+                removeEl(typingId);
+                const data = await res.json().catch(() => null);
+
+                if (!data) {
+                    lockSession(`Server error (HTTP ${res.status}): ${res.statusText || "Empty response"}`);
+                    return;
+                }
+
+                /* fatal → lock session */
+                if (data.fatal_session_end || res.status === 402 || res.status === 403 || res.status === 429) {
+                    lockSession(data.message || `Session terminated due to engine error (HTTP ${res.status})`);
+                    return;
+                }
+
+                /* non-fatal error */
+                if (data.error || !res.ok) {
+                    appendMsg("error", data.message || `Request failed (${res.status})`);
+                    return;
+                }
+
+                /* success */
+                appendMsg("ai", data.answer, data.sources);
+
+            } catch (err) {
+                removeEl(typingId);
+                lockSession(`Network error — unable to reach the server. ${err.message}`);
+            }
+        }
+
+        /* ═══════════════════════════════
+           State transitions
+           ═══════════════════════════════ */
+
+        /** State 1 → State 2 */
+        function enterChat(cached) {
+            uploadScreen.classList.add("state-hidden");
+            chatScreen.classList.remove("state-hidden");
+
+            headerName.textContent = filename;
+
+            if (cached) {
+                headerBadge.textContent = "⚡ Cached";
+                headerBadge.className =
+                    "inline-block mt-0.5 px-2 py-0.5 rounded-full text-[10px] font-bold " +
+                    "uppercase tracking-wider bg-amber-500/15 text-amber-400 border border-amber-500/20";
+            } else {
+                headerBadge.textContent = "✨ Newly Embedded";
+                headerBadge.className =
+                    "inline-block mt-0.5 px-2 py-0.5 rounded-full text-[10px] font-bold " +
+                    "uppercase tracking-wider bg-emerald-500/15 text-emerald-400 border border-emerald-500/20";
+            }
+
+            messages.innerHTML = "";
+            appendMsg("ai", `I've loaded **${filename}**. Ask me anything about its contents!`);
+
+            locked = false;
+            qInput.disabled = false;
+            qInput.focus();
+        }
+
+        /** State 2 → State 3 */
+        function lockSession(msg) {
+            locked = true;
+            qInput.disabled  = true;
+            sendBtn.disabled = true;
+
+            fatalBanner.classList.remove("state-hidden");
+            fatalText.textContent = msg;
+
+            /* pulse the New Chat button red */
+            newChatBtn.classList.remove(
+                "bg-slate-800", "hover:bg-slate-700",
+                "border-slate-700", "hover:border-slate-600");
+            newChatBtn.classList.add(
+                "bg-red-600", "hover:bg-red-500",
+                "border-red-500", "animate-pulse-glow", "text-white");
+        }
+
+        /** Any state → State 1 */
+        newChatBtn.addEventListener("click", handleNewChat);
+
+        async function handleNewChat() {
+            try { await fetch(`${API}/api/reset`, { method: "POST" }); } catch (_) { /* ok */ }
+
+            pdfHash  = null;
+            filename = null;
+            locked   = false;
+
+            /* hide chat, show upload */
+            chatScreen.classList.add("state-hidden");
+            uploadScreen.classList.remove("state-hidden");
+
+            /* reset upload form */
+            fileInput.value = "";
+            dzIdle.classList.remove("state-hidden");
+            dzSelected.classList.add("state-hidden");
+            uploadBtn.classList.add("state-hidden");
+            uploadBtn.disabled = true;
+            hideProgress();
+            hideUploadErr();
+
+            /* reset chat UI */
+            messages.innerHTML = "";
+            qInput.value       = "";
+            qInput.disabled    = false;
+            sendBtn.disabled   = true;
+            fatalBanner.classList.add("state-hidden");
+
+            /* reset new-chat button style */
+            newChatBtn.classList.remove(
+                "bg-red-600", "hover:bg-red-500",
+                "border-red-500", "animate-pulse-glow");
+            newChatBtn.classList.add(
+                "bg-slate-800", "hover:bg-slate-700",
+                "border-slate-700", "hover:border-slate-600");
+        }
+
+        /* ═══════════════════════════════
+           Message rendering
+           ═══════════════════════════════ */
+
+        function appendMsg(role, text, sources = []) {
+            const wrap = document.createElement("div");
+            wrap.className = "animate-fade-in";
+
+            if (role === "user") {
+                wrap.innerHTML = `
+                <div class="flex justify-end">
+                    <div class="max-w-[80%] md:max-w-[65%] px-4 py-3 rounded-2xl rounded-br-md
+                                bg-gradient-to-r from-violet-600 to-purple-700
+                                text-white text-sm leading-relaxed
+                                shadow-lg shadow-violet-600/20">
+                        ${esc(text)}
+                    </div>
+                </div>`;
+            }
+
+            else if (role === "ai") {
+                const srcHtml = sources.length
+                    ? `<div class="flex flex-wrap gap-1.5 mt-2.5">
+                         <span class="text-[10px] text-slate-500 uppercase tracking-wider
+                                      font-semibold mr-0.5 self-center">Sources:</span>
+                         ${sources.map(p =>
+                             `<span class="px-2 py-0.5 rounded-md bg-violet-500/10
+                                          text-violet-400 text-[11px] font-medium
+                                          border border-violet-500/15">p.&thinsp;${p}</span>`
+                         ).join("")}
+                       </div>`
+                    : "";
+
+                wrap.innerHTML = `
+                <div class="flex justify-start gap-3">
+                    ${aiAvatar()}
+                    <div class="max-w-[80%] md:max-w-[65%]">
+                        <div class="px-4 py-3 rounded-2xl rounded-tl-md glass-card
+                                    text-sm text-slate-200 leading-relaxed">
+                            ${fmt(text)}
+                        </div>
+                        ${srcHtml}
+                    </div>
+                </div>`;
+            }
+
+            else if (role === "error") {
+                wrap.innerHTML = `
+                <div class="flex justify-center">
+                    <div class="px-4 py-2 rounded-xl bg-red-500/10 border border-red-500/20
+                                text-sm text-red-400">${esc(text)}</div>
+                </div>`;
+            }
+
+            messages.appendChild(wrap);
+            messages.scrollTop = messages.scrollHeight;
+        }
+
+        function appendTyping() {
+            const id = "typ-" + Date.now();
+            const el = document.createElement("div");
+            el.id = id;
+            el.className = "animate-fade-in";
+            el.innerHTML = `
+            <div class="flex justify-start gap-3">
+                ${aiAvatar()}
+                <div class="px-4 py-3.5 rounded-2xl rounded-tl-md glass-card">
+                    <div class="flex items-center gap-1.5">
+                        <span class="w-2 h-2 rounded-full bg-violet-400 animate-bounce-dot"></span>
+                        <span class="w-2 h-2 rounded-full bg-violet-400 animate-bounce-dot dot-2"></span>
+                        <span class="w-2 h-2 rounded-full bg-violet-400 animate-bounce-dot dot-3"></span>
+                    </div>
+                </div>
+            </div>`;
+            messages.appendChild(el);
+            messages.scrollTop = messages.scrollHeight;
+            return id;
+        }
+
+        /* ───────── small helpers ───────── */
+
+        function aiAvatar() {
+            return `<div class="flex-shrink-0 w-8 h-8 rounded-lg bg-gradient-to-br
+                                from-violet-500/20 to-purple-700/20 border border-violet-500/20
+                                flex items-center justify-center mt-1">
+                        <svg class="w-4 h-4 text-violet-400" fill="none" viewBox="0 0 24 24"
+                             stroke="currentColor" stroke-width="1.5">
+                            <path stroke-linecap="round" stroke-linejoin="round"
+                                  d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0
+                                     00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0
+                                     003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0
+                                     003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0
+                                     00-3.09 3.09zM18.259 8.715L18 9.75l-.259-1.035a3.375
+                                     3.375 0 00-2.455-2.456L14.25 6l1.036-.259a3.375
+                                     3.375 0 002.455-2.456L18 2.25l.259 1.035a3.375
+                                     3.375 0 002.455 2.456L21.75 6l-1.036.259a3.375
+                                     3.375 0 00-2.455 2.456zM16.894 20.567L16.5
+                                     21.75l-.394-1.183a2.25 2.25 0
+                                     00-1.423-1.423L13.5 18.75l1.183-.394a2.25
+                                     2.25 0 001.423-1.423l.394-1.183.394
+                                     1.183a2.25 2.25 0 001.423 1.423l1.183.394-1.183
+                                     .394a2.25 2.25 0 00-1.423 1.423z"/>
+                        </svg>
+                    </div>`;
+        }
+
+        function removeEl(id) { document.getElementById(id)?.remove(); }
+
+        function showProgress(t) { progress.classList.remove("state-hidden"); progressText.textContent = t; }
+        function hideProgress()  { progress.classList.add("state-hidden"); }
+        function showUploadErr(t){ uploadErr.classList.remove("state-hidden"); uploadErrTxt.textContent = t; }
+        function hideUploadErr() { uploadErr.classList.add("state-hidden"); }
+
+        function esc(s) { const d = document.createElement("div"); d.textContent = s; return d.innerHTML; }
+
+        function fmt(s) {
+            let h = esc(s);
+            h = h.replace(/\*\*(.*?)\*\*/g, '<strong class="font-semibold text-white">$1</strong>');
+            h = h.replace(/`(.*?)`/g,
+                '<code class="px-1.5 py-0.5 rounded bg-slate-700/60 text-violet-300 text-xs font-mono">$1</code>');
+            h = h.replace(/\n/g, "<br>");
+            return h;
+        }
+
+        function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
+    })();
+    </script>
+</body>
+</html>

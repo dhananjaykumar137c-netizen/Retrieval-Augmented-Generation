@@ -121,7 +121,7 @@ Answer:"""
     print("Generating answer...")
     try:
         # Option 1: Ollama (local)
-        response = ollama.generate(model='mistral', prompt=prompt)
+        response = ollama.generate(model='llama3.2', prompt=prompt)
         answer = response['response']
         
         print(f"Answer: {answer}")
