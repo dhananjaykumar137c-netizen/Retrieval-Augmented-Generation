@@ -17,6 +17,19 @@ chonkie>=0.4.0
 # Semantic & Embedding-based Chunking (Optional / Advanced)
 sentence-transformers>=3.0.0
 
+# Web Backend
+fastapi>=0.115.0
+uvicorn[standard]>=0.30.0
+python-multipart>=0.0.9
+
+# Vector DB & LLM
+pinecone>=5.0.0
+ollama>=0.4.0
+
+# Document Loading
+langchain-community>=0.3.0
+pymupdf>=1.24.0
+
 # Utility & Notebook Support (Optional)
 numpy>=1.26.0
 python-dotenv>=1.0.0
