@@ -38,7 +38,7 @@ PINECONE_API_KEY = os.getenv("PINECONE_API_KEY")
 INDEX_NAME = os.getenv("PINECONE_INDEX_NAME", "chatdatabase")
 EMBED_MODEL = "thenlper/gte-large"
 EMBED_DIM = 1024  # gte-large output dimension
-LLM_MODEL = "mistral"
+LLM_MODEL = os.getenv("LLM_MODEL", "llama3.2")
 CHUNK_SIZE = 500
 CHUNK_OVERLAP = 100
 UPSERT_BATCH_SIZE = 100
@@ -293,6 +293,7 @@ def query_system(
     embedder,
     index,
     top_k: int = 5,
+    model: str | None = None,
 ) -> dict:
     """Query Pinecone for relevant chunks and generate an answer with Ollama.
 
@@ -308,6 +309,8 @@ def query_system(
         Pinecone index to query.
     top_k : int, optional
         Number of chunks to retrieve (default 5).
+    model : str, optional
+        LLM model to use (default: LLM_MODEL / os.getenv('LLM_MODEL', 'llama3.2')).
 
     Returns
     -------
@@ -354,9 +357,10 @@ def query_system(
     )
 
     # --- generate answer via Ollama --------------------------------------- #
-    logger.info("Generating answer with model=%s …", LLM_MODEL)
+    active_model = model or LLM_MODEL
+    logger.info("Generating answer with model=%s …", active_model)
     try:
-        response = ollama.generate(model=LLM_MODEL, prompt=prompt)
+        response = ollama.generate(model=active_model, prompt=prompt)
         answer = response["response"]
     except Exception as exc:
         _classify_error(exc)  # raises typed RAGEngineError or re-raises
